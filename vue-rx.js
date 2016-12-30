@@ -102,6 +102,42 @@
       return obs$
     }
 
+    Vue.prototype.$asObservable = function (expOrFn, options) {
+      if (!hasRx()) {
+        return
+      }
+      options = options || {}
+      if (typeof options.immediate === 'undefined') {
+        options.immediate = true
+      }
+
+      var vm = this
+      var obs$ = Rx.Observable.create(function (observer) {
+        var _unwatch
+        function watch () {
+          _unwatch = vm.$watch(expOrFn, function (newValue) {
+            observer.next(newValue)
+          }, options)
+        }
+
+        // if $watchAsObservable is called inside the subscriptions function,
+        // because data hasn't been observed yet, the watcher will not work.
+        // in that case, wait until created hook to watch.
+        if (vm._data) {
+          watch()
+        } else {
+          vm.$once('hook:created', watch)
+        }
+
+        return function unwatch () {
+          _unwatch && _unwatch()
+        }
+      })
+
+      ;(vm._obSubscriptions || (vm._obSubscriptions = [])).push(obs$)
+      return obs$
+    }
+
     Vue.prototype.$fromDOMEvent = function (selector, event) {
       if (!hasRx()) {
         return
