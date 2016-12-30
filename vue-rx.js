@@ -1,3 +1,5 @@
+/*global Vue Rx define*/
+
 (function () {
   function VueRx (Vue, Rx) {
     var warn = Vue.util.warn || function () {}
@@ -138,7 +140,7 @@
       return obs$
     }
 
-    Vue.prototype.$subscribeTo = function(observable, next, error, complete) {
+    Vue.prototype.$subscribeTo = function (observable, next, error, complete) {
       var obs$ = observable.subscribe(next, error, complete)
       ;(this._obSubscriptions || (this._obSubscriptions = [])).push(obs$)
       return obs$
