@@ -7,9 +7,9 @@
     "vue-rx.js"
   ],
   "scripts": {
-    "lint": "eslint src test",
-    "lint:watch": "chokidar --initial 'vue-rx.js' 'test/**/*.js' -c 'clear && eslint src test'",
-    "test": "eslint src test && jest"
+    "lint": "eslint test vue-rx.js",
+    "lint:watch": "chokidar --initial 'vue-rx.js' 'test/**/*.js' -c 'clear && eslint test vue-rx.js'",
+    "test": "eslint test vue-rx.js && jest"
   },
   "repository": {
     "type": "git",

@@ -1,23 +1,22 @@
 /*global Vue Rx define*/
 
 (function () {
-  function VueRx(Vue, Rx) {
+  function VueRx (Vue, Rx) {
     var warn = Vue.util.warn || function () { }
 
-    function observableCreate(subscribe) {
+    function observableCreate (subscribe) {
       var _rx = Rx || (typeof window !== 'undefined' && window.Rx) || (typeof global !== 'undefined' && global.Rx)
       if (!_rx || !_rx.Observable || !_rx.Observable.create) {
         warn(
           'Unable to create an Observable. VueRx requires Rx to be present ' +
-          'globally or be passed to Vue.use() as the second argument.',
-          vm
+          'globally or be passed to Vue.use() as the second argument.'
         )
         return false
       }
       return _rx.Observable.create(subscribe)
     }
 
-    function unsubscribe(subscription) {
+    function unsubscribe (subscription) {
       if (subscription.unsubscribe) { // a RxJS 5 Subscription
         subscription.unsubscribe()
       } else if (subscription.dispose) {  // a RxJS 4 Disposable
@@ -27,7 +26,7 @@
       }
     }
 
-    function defineReactive(vm, key, val) {
+    function defineReactive (vm, key, val) {
       if (key in vm) {
         vm[key] = val
       } else {
@@ -75,7 +74,7 @@
       var vm = this
       return observableCreate(function (observer) {
         var unwatch
-        function watch() {
+        function watch () {
           unwatch = vm.$watch(expOrFn, function (value) {
             observer.next(value)
           }, options)
@@ -91,7 +90,7 @@
           observer.complete()
         })
 
-        return function unsubscribe() {
+        return function unsubscribe () {
           if (unwatch) {
             unwatch()
           } else {
@@ -109,22 +108,22 @@
       var vm = this
       if (typeof selector === 'undefined') { // Listen to Vue events
         return observableCreate(function (observer) {
-          function listener(e) {
+          function listener (e) {
             observer.next(e)
           }
           vm.$on(event, listener)
-          return function unsubscribe() {
+          return function unsubscribe () {
             vm.$off(event, listener)
           }
         })
       } else { // Listen to DOM events
         var rootElement = document.documentElement
         return observableCreate(function (observer) {
-          function listener(e) {
-            if (!vm.$el) return;
+          function listener (e) {
+            if (!vm.$el) return
             if (selector === null && vm.$el === e.target) return observer.next(e)
-            var els = vm.$el.querySelectorAll(selector);
-            var el = e.target;
+            var els = vm.$el.querySelectorAll(selector)
+            var el = e.target
             for (var i = 0, len = els.length; i < len; i++) {
               if (els[i] === el) return observer.next(e)
             }
@@ -133,7 +132,7 @@
           vm.$once('hook:destroyed', function () {
             observer.complete()
           })
-          return function unsubscribe() {
+          return function unsubscribe () {
             rootElement.removeEventListener(event, listener)
           }
         })
@@ -147,6 +146,48 @@
       }
       this.$$managedSubscriptions.push(subscription)
       return subscription
+    }
+
+    Vue.prototype.$observableFromRef = function (name) {
+      var vm = this
+      return observableCreate(function (observer) {
+        var previous = this.$refs && this.$refs[name]
+        if (typeof previous !== 'undefined') {
+          observer.next(previous)
+          if (Array.isArray(previous)) {
+            previous = previous.slice(0)
+          }
+        }
+        function watch () {
+          var next = this.$refs[name]
+          if (next !== previous) {
+            if (Array.isArray(next)) {
+              if (Array.isArray(previous) && next.length === previous.length) {
+                var changed = false
+                for (var i in previous) {
+                  if (next[i] !== previous[i]) {
+                    changed = true
+                    break
+                  }
+                }
+                if (!changed) {
+                  return
+                }
+              }
+              previous = next.slice(0)
+            } else {
+              previous = next
+            }
+            observer.next(next)
+          }
+        }
+        vm.$on('hook:updated', watch)
+        vm.$on('hook:mounted', watch)
+        return function unsubscribe () {
+          vm.$off('hook:updated', watch)
+          vm.$off('hook:mounted', watch)
+        }
+      })
     }
   }
 
