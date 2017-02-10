@@ -1,22 +1,33 @@
 /*global Vue Rx define*/
 
 (function () {
-  function VueRx (Vue, Rx) {
-    var warn = Vue.util.warn || function () {}
+  function VueRx(Vue, Rx) {
+    var warn = Vue.util.warn || function () { }
 
-    function hasRx (vm) {
-      if (!Rx) {
+    function observableCreate(subscribe) {
+      var _rx = Rx || (typeof window !== 'undefined' && window.Rx) || (typeof global !== 'undefined' && global.Rx)
+      if (!_rx || !_rx.Observable || !_rx.Observable.create) {
         warn(
-          '$watchAsObservable requires Rx to be present globally or ' +
-          'be passed to Vue.use() as the second argument.',
+          'Unable to create an Observable. VueRx requires Rx to be present ' +
+          'globally or be passed to Vue.use() as the second argument.',
           vm
         )
         return false
       }
-      return true
+      return _rx.Observable.create(subscribe)
     }
 
-    function defineReactive (vm, key, val) {
+    function unsubscribe(subscription) {
+      if (subscription.unsubscribe) { // a RxJS 5 Subscription
+        subscription.unsubscribe()
+      } else if (subscription.dispose) {  // a RxJS 4 Disposable
+        subscription.dispose()
+      } else {
+        warn('Unable to unsubscribe')
+      }
+    }
+
+    function defineReactive(vm, key, val) {
       if (key in vm) {
         vm[key] = val
       } else {
@@ -25,161 +36,117 @@
     }
 
     Vue.mixin({
-      created: function init () {
+      beforeMount: function () {
         var vm = this
-        var obs = vm.$options.subscriptions
-        if (typeof obs === 'function') {
-          obs = obs.call(vm)
+        var observables = vm.$options.subscriptions
+        if (typeof observables === 'function') {
+          observables = observables.call(vm)
         }
-        if (!obs) return
-        vm.$observables = {}
-        vm._obSubscriptions = []
-        Object.keys(obs).forEach(function (key) {
+        if (!observables) return
+
+        Object.keys(observables).forEach(function (key) {
           defineReactive(vm, key, undefined)
-          var ob = vm.$observables[key] = obs[key]
-          if (!ob || typeof ob.subscribe !== 'function') {
+          var observable = observables[key]
+          if (!observable || typeof observable.subscribe !== 'function') {
             warn(
               'Invalid Observable found in subscriptions option with key "' + key + '".',
               vm
             )
             return
           }
-          vm._obSubscriptions.push(obs[key].subscribe(function (value) {
+          vm.$subscribeTo(observable, function (value) {
             vm[key] = value
-          }))
+          })
         })
       },
       beforeDestroy: function () {
-        if (this._obSubscriptions) {
-          this._obSubscriptions.forEach(function (handle) {
-            if (handle.dispose) {
-              handle.dispose()
-            } else if (handle.unsubscribe) {
-              handle.unsubscribe()
-            }
-          })
+        if (this.$$managedSubscriptions) {
+          this.$$managedSubscriptions.forEach(unsubscribe)
         }
       }
     })
 
-    Vue.prototype.$watchAsObservable = function (expOrFn, options) {
-      if (!hasRx()) {
-        return
-      }
-
-      var vm = this
-      var obs$ = Rx.Observable.create(function (observer) {
-        var _unwatch
-        function watch () {
-          _unwatch = vm.$watch(expOrFn, function (newValue, oldValue) {
-            observer.next({ oldValue: oldValue, newValue: newValue })
-          }, options)
-        }
-        function unwatch () {
-          _unwatch && _unwatch()
-        }
-
-        // if $watchAsObservable is called inside the subscriptions function,
-        // because data hasn't been observed yet, the watcher will not work.
-        // in that case, wait until created hook to watch.
-        if (vm._data) {
-          watch()
-        } else {
-          vm.$once('hook:created', watch)
-        }
-
-        // Returns function which disconnects the $watch expression
-        var disposable
-        if (Rx.Subscription) { // Rx5
-          disposable = new Rx.Subscription(unwatch)
-        } else { // Rx4
-          disposable = Rx.Disposable.create(unwatch)
-        }
-        return disposable
-      })
-
-      ;(vm._obSubscriptions || (vm._obSubscriptions = [])).push(obs$)
-      return obs$
-    }
-
-    Vue.prototype.$asObservable = function (expOrFn, options) {
-      if (!hasRx()) {
-        return
-      }
+    Vue.prototype.$observableFromValue = function (expOrFn, options) {
       options = options || {}
       if (typeof options.immediate === 'undefined') {
         options.immediate = true
       }
 
       var vm = this
-      var obs$ = Rx.Observable.create(function (observer) {
-        var _unwatch
-        function watch () {
-          _unwatch = vm.$watch(expOrFn, function (newValue) {
-            observer.next(newValue)
+      return observableCreate(function (observer) {
+        var unwatch
+        function watch() {
+          unwatch = vm.$watch(expOrFn, function (value) {
+            observer.next(value)
           }, options)
         }
 
-        // if $watchAsObservable is called inside the subscriptions function,
-        // because data hasn't been observed yet, the watcher will not work.
-        // in that case, wait until created hook to watch.
-        if (vm._data) {
+        if (vm._data) { // data has been observed?
           watch()
-        } else {
+        } else { // wait until created hook, otherwise the watcher will not work.
           vm.$once('hook:created', watch)
         }
 
-        return function unwatch () {
-          _unwatch && _unwatch()
+        vm.$once('hook:destroyed', function () {
+          observer.complete()
+        })
+
+        return function unsubscribe() {
+          if (unwatch) {
+            unwatch()
+          } else {
+            vm.$once('hook:created', unwatch)
+          }
         }
       })
-
-      ;(vm._obSubscriptions || (vm._obSubscriptions = [])).push(obs$)
-      return obs$
     }
 
-    Vue.prototype.$fromDOMEvent = function (selector, event) {
-      if (!hasRx()) {
-        return
-      }
+    Vue.prototype.$observableFromEvent = function (event, selector) {
       if (typeof window === 'undefined') {
-        return Rx.Observable.create(function () {})
+        return observableCreate(function () { })
       }
 
       var vm = this
-      var doc = document.documentElement
-      var obs$ = Rx.Observable.create(function (observer) {
-        function listener (e) {
-          if (!vm.$el) return;
-          if (selector === null && vm.$el === e.target) return observer.next(e)
-          var els = vm.$el.querySelectorAll(selector);
-          var el = e.target;
-          for (var i = 0, len = els.length; i < len; i++) {
-            if (els[i] === el) return observer.next(e)
+      if (typeof selector === 'undefined') { // Listen to Vue events
+        return observableCreate(function (observer) {
+          function listener(e) {
+            observer.next(e)
           }
-        }
-        doc.addEventListener(event, listener)
-        function unwatch () {
-          doc.removeEventListener(event, listener)
-        }
-        // Returns function which disconnects the $watch expression
-        var disposable
-        if (Rx.Subscription) { // Rx5
-          disposable = new Rx.Subscription(unwatch)
-        } else { // Rx4
-          disposable = Rx.Disposable.create(unwatch)
-        }
-        return disposable
-      })
-
-      ;(vm._obSubscriptions || (vm._obSubscriptions = [])).push(obs$)
-      return obs$
+          vm.$on(event, listener)
+          return function unsubscribe() {
+            vm.$off(event, listener)
+          }
+        })
+      } else { // Listen to DOM events
+        var rootElement = document.documentElement
+        return observableCreate(function (observer) {
+          function listener(e) {
+            if (!vm.$el) return;
+            if (selector === null && vm.$el === e.target) return observer.next(e)
+            var els = vm.$el.querySelectorAll(selector);
+            var el = e.target;
+            for (var i = 0, len = els.length; i < len; i++) {
+              if (els[i] === el) return observer.next(e)
+            }
+          }
+          rootElement.addEventListener(event, listener)
+          vm.$once('hook:destroyed', function () {
+            observer.complete()
+          })
+          return function unsubscribe() {
+            rootElement.removeEventListener(event, listener)
+          }
+        })
+      }
     }
 
     Vue.prototype.$subscribeTo = function (observable, next, error, complete) {
-      var obs$ = observable.subscribe(next, error, complete)
-      ;(this._obSubscriptions || (this._obSubscriptions = [])).push(obs$)
-      return obs$
+      var subscription = observable.subscribe(next, error, complete)
+      if (!this.$$managedSubscriptions) {
+        this.$$managedSubscriptions = []
+      }
+      this.$$managedSubscriptions.push(subscription)
+      return subscription
     }
   }
 

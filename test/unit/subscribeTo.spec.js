@@ -1,4 +1,4 @@
-import Vue from 'vue/dist/vue.common.js'
+import Vue from './vueWithVueRx'
 import Spyable from './Spyable'
 
 function getComponent (value$) {

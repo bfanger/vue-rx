@@ -1,6 +1,8 @@
 # vue-rx
 
-Simple [RxJS](https://github.com/Reactive-Extensions/RxJS) binding for Vue.js. It also supports subscriptions for generic observables that implement the `.subscribe` and `.unsubscribe` (or `.dispose`) interface. For example, you can use it to subscribe to `most.js` or Falcor streams, but some features require RxJS to work.
+[RxJS](https://github.com/ReactiveX/rxjs) binding for Vue.js.
+It also supports subscriptions for generic observables that implement the `.subscribe` and `.unsubscribe` (or `.dispose`) interface.
+For example, you can use it to subscribe to `most.js` or Falcor streams, but some features require RxJS to work.
 
 ### Installation
 
@@ -66,23 +68,11 @@ Vue.component('foo', {
 })
 ```
 
-The observables are exposed as `vm.$observables`:
-
-``` js
-var vm = new Vue({
-  subscriptions: {
-    msg: messageObservable
-  }
-})
-
-vm.$observables.msg.subscribe(msg => console.log(msg))
-```
-
-#### `$watchAsObservable(expOrFn, [options])`
+#### `$observableFromValue(expOrFn, [options])`
 
 > This feature requires RxJS.
 
-This is a prototype method added to instances. You can use it to create an observable from a value watcher. The emitted value is in the format of `{ newValue, oldValue }`:
+This is a prototype method added to instances. You can use it to create an observable from a value watcher.
 
 ``` js
 var vm = new Vue({
@@ -92,23 +82,26 @@ var vm = new Vue({
   subscriptions () {
     // declaratively map to another property with Rx operators
     return {
-      aPlusOne: this.$watchAsObservable('a')
-        .pluck('newValue')
+      aPlusOne: this.$observableFromValue('a')
         .map(a => a + 1)
     }
   }
 })
 
 // or produce side effects...
-vm.$watchAsObservable('a')
+vm.$observableFromValue('a')
   .subscribe(
-    ({ newValue, oldValue }) => console.log('stream value', newValue, oldValue),
+    (value) => console.log('stream value', value),
     err => console.error(err),
     () => console.log('complete')
   )
 ```
 
 The optional `options` object accepts the same options as `vm.$watch`.
+{
+  deep: boolean, default false
+  immediate: boolean, default true
+}
 
 #### `$subscribeTo(observable, next, error, complete)`
 

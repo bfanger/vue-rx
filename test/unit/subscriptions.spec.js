@@ -1,10 +1,13 @@
-import Vue from 'vue/dist/vue.common.js'
+import Vue from './vueWithVueRx'
 import Spyable from './Spyable'
 
 function getComponent (value$) {
   return new Vue({
     subscriptions: {
       value: value$
+    },
+    render (h) {
+      return h('div')
     }
   })
 }
@@ -12,10 +15,12 @@ function getComponent (value$) {
 describe('vm.$options.subscriptions', () => {
   it('should subscribe and unsubscribe based on component lifecycle', () => {
     const value$ = new Spyable()
-    // subscribe (in vm.created() )
-    expect(value$.subscribe).not.toHaveBeenCalled()
     value$.next('not_yet_listening')
     const vm = getComponent(value$)
+    expect(value$.subscribe).not.toHaveBeenCalled()
+    value$.next('still_not_listening')
+    // subscribe (in vm.beforeMount() )
+    vm.$mount()
     expect(value$.subscribe).toHaveBeenCalled()
     expect(vm.value).toBeUndefined()
     // listen for emitted values
