@@ -65,6 +65,33 @@
       }
     })
 
+    Vue.prototype.$observableCompleteOnDestroy = function (observable) {
+      if (typeof observable === 'function') {
+        observable = observableCreate(observable)
+      }
+      var vm = this
+      return observableCreate(function (observer) {
+        var subscription = observable.subscribe(observer)
+        function complete () {
+          observer.complete()
+        }
+        vm.$on('hook:destroyed', complete)
+        return function () {
+          unsubscribe(subscription)
+          vm.$off('hook:destroyed', complete)
+        }
+      })
+    }
+
+    Vue.prototype.$subscribeTo = function (observable, next, error, complete) {
+      var subscription = observable.subscribe(next, error, complete)
+      if (!this.$$managedSubscriptions) {
+        this.$$managedSubscriptions = []
+      }
+      this.$$managedSubscriptions.push(subscription)
+      return subscription
+    }
+
     Vue.prototype.$observableFromValue = function (expOrFn, options) {
       options = options || {}
       if (typeof options.immediate === 'undefined') {
@@ -72,7 +99,7 @@
       }
 
       var vm = this
-      return observableCreate(function (observer) {
+      return this.$observableCompleteOnDestroy(function (observer) {
         var unwatch
         function watch () {
           unwatch = vm.$watch(expOrFn, function (value) {
@@ -86,10 +113,6 @@
           vm.$once('hook:created', watch)
         }
 
-        vm.$once('hook:destroyed', function () {
-          observer.complete()
-        })
-
         return function unsubscribe () {
           if (unwatch) {
             unwatch()
@@ -101,13 +124,9 @@
     }
 
     Vue.prototype.$observableFromEvent = function (event, selector) {
-      if (typeof window === 'undefined') {
-        return observableCreate(function () { })
-      }
-
       var vm = this
       if (typeof selector === 'undefined') { // Listen to Vue events
-        return observableCreate(function (observer) {
+        return this.$observableCompleteOnDestroy(function (observer) {
           function listener (e) {
             observer.next(e)
           }
@@ -118,7 +137,7 @@
         })
       } else { // Listen to DOM events
         var rootElement = document.documentElement
-        return observableCreate(function (observer) {
+        return this.$observableCompleteOnDestroy(function (observer) {
           function listener (e) {
             if (!vm.$el) return
             if (selector === null && vm.$el === e.target) return observer.next(e)
@@ -129,9 +148,6 @@
             }
           }
           rootElement.addEventListener(event, listener)
-          vm.$once('hook:destroyed', function () {
-            observer.complete()
-          })
           return function unsubscribe () {
             rootElement.removeEventListener(event, listener)
           }
@@ -139,18 +155,9 @@
       }
     }
 
-    Vue.prototype.$subscribeTo = function (observable, next, error, complete) {
-      var subscription = observable.subscribe(next, error, complete)
-      if (!this.$$managedSubscriptions) {
-        this.$$managedSubscriptions = []
-      }
-      this.$$managedSubscriptions.push(subscription)
-      return subscription
-    }
-
     Vue.prototype.$observableFromRef = function (name) {
       var vm = this
-      return observableCreate(function (observer) {
+      return this.$observableCompleteOnDestroy(function (observer) {
         var previous = this.$refs && this.$refs[name]
         if (typeof previous !== 'undefined') {
           observer.next(previous)
