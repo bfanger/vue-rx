@@ -1,7 +1,7 @@
-import Vue from 'vue/dist/vue.min.js'
-import VueRx from '../../vue-rx.js'
-import Rx from 'rxjs'
+const Vue = require('vue/dist/vue.min.js')
+const VueRx = require('../../vue-rx.js')
+const Rx = require('./rx')
 
 Vue.use(VueRx, Rx)
 
-export default Vue
+module.exports = Vue

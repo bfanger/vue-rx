@@ -73,7 +73,11 @@
       return observableCreate(function (observer) {
         var subscription = observable.subscribe(observer)
         function complete () {
-          observer.complete()
+          if (observer.onCompleted) {
+            observer.onCompleted() // RxJS 4
+          } else {
+            observer.complete() // RxJS 5
+          }
         }
         vm.$on('hook:destroyed', complete)
         return function () {

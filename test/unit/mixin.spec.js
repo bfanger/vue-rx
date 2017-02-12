@@ -1,6 +1,6 @@
-import Vue from 'vue/dist/vue.min.js'
-import VueRx from '../../vue-rx.js'
-import Rx from 'rxjs'
+const Vue = require('vue/dist/vue.min.js')
+const VueRx = require('../../vue-rx.js')
+const Rx = require('rxjs')
 
 describe('VueRx mixin', () => {
   it('should register methods for every vue instance', () => {

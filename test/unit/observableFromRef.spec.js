@@ -1,5 +1,6 @@
-import Vue from './vueWithVueRx'
-import Spyable from './Spyable'
+const Vue = require('./vueWithVueRx')
+const Rx = require('./rx')
+const Spyable = require('./Spyable')(Rx)
 
 describe('vm.$observableFromRef()', () => {
   it('should emit $refs when changed', () => {
@@ -11,14 +12,14 @@ describe('vm.$observableFromRef()', () => {
     })
     const spy = new Spyable()
     vm.$observableFromRef('mySpan').subscribe(spy)
-    expect(spy.next).toHaveBeenCalledTimes(0)
+    expect(spy.nextSpy).toHaveBeenCalledTimes(0)
     vm.$mount()
-    expect(spy.next).toHaveBeenCalledTimes(1)
+    expect(spy.nextSpy).toHaveBeenCalledTimes(1)
     expect(spy.value).toBe(vm.$el)
 
     vm.visible = false
     return vm.$nextTick().then(() => {
-      expect(spy.next).toHaveBeenCalledTimes(2)
+      expect(spy.nextSpy).toHaveBeenCalledTimes(2)
       expect(spy.value).toBeUndefined()
     })
   })
@@ -37,9 +38,9 @@ describe('vm.$observableFromRef()', () => {
     })
     const spy = new Spyable()
     vm.$observableFromRef('lights').subscribe(spy)
-    expect(spy.next).toHaveBeenCalledTimes(0)
+    expect(spy.nextSpy).toHaveBeenCalledTimes(0)
     vm.$mount()
-    expect(spy.next).toHaveBeenCalledTimes(1)
+    expect(spy.nextSpy).toHaveBeenCalledTimes(1)
     expect(spy.value).toBeInstanceOf(Array)
     expect(spy.value.length).toBe(3)
 
@@ -48,12 +49,12 @@ describe('vm.$observableFromRef()', () => {
       return vm.$nextTick()
     }).then(() => {
       expect(spy.value.length).toBe(2)
-      expect(spy.next).toHaveBeenCalledTimes(2)
+      expect(spy.nextSpy).toHaveBeenCalledTimes(2)
       vm.lights = 2
       return vm.$nextTick()
     }).then(() => {
       expect(spy.value.length).toBe(2)
-      expect(spy.next).toHaveBeenCalledTimes(2)
+      expect(spy.nextSpy).toHaveBeenCalledTimes(2)
     })
   })
 })
