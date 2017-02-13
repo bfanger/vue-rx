@@ -4,14 +4,14 @@ module.exports = function (Rx) {
     throw new Error('Rx.Subject is required for Spyable')
   }
   const mapping = Rx.Subject.prototype.unsubscribe ? {
-    // RxJS 5
+    // RxJS 5 methods
     next: 'next',
     complete: 'complete',
     error: 'error',
     subscribe: 'subscribe',
     unsubscribe: 'unsubscribe'
   } : {
-    // RxJS 4
+    // RxJS 4 methods
     next: 'onNext',
     complete: 'onCompleted',
     error: 'onError',
@@ -38,19 +38,34 @@ module.exports = function (Rx) {
       }
     }
 
+    /**
+     * Alias for next() or onNext() depending on running in RxJS 5 or 4
+     */
     $emit (value) {
       this[mapping.next](value)
     }
+    /**
+     * Alias for error() or onError() depending on running in RxJS 5 or 4
+     */
     $emitError (error) {
       this[mapping.error](error)
     }
+    /**
+     * Alias for complete() or onCompleted() depending on running in RxJS 5 or 4
+     */
     $emitComplete () {
       this[mapping.complete]()
     }
-
+    /**
+     * Get the last emitted value
+     * Mimics the BehaviorSubject api
+     */
     getValue () {
       return this.value
     }
+    /**
+     * Get emitted error
+     */
     getError () {
       return this.error
     }
@@ -63,6 +78,7 @@ module.exports = function (Rx) {
       return this._real.complete.call(this)
     }
     errorSpy (error) {
+      // @todo Check if the observer isn't already in a completed/error state
       this.error = error
       return this._real.error.call(this, error)
     }

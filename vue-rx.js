@@ -117,7 +117,7 @@
           vm.$once('hook:created', watch)
         }
 
-        return function unsubscribe () {
+        return function () {
           if (unwatch) {
             unwatch()
           } else {
@@ -135,7 +135,7 @@
             observer.next(e)
           }
           vm.$on(event, listener)
-          return function unsubscribe () {
+          return function () {
             vm.$off(event, listener)
           }
         })
@@ -152,7 +152,7 @@
             }
           }
           rootElement.addEventListener(event, listener)
-          return function unsubscribe () {
+          return function () {
             rootElement.removeEventListener(event, listener)
           }
         })
@@ -194,7 +194,30 @@
         }
         vm.$on('hook:updated', watch)
         vm.$on('hook:mounted', watch)
-        return function unsubscribe () {
+        return function () {
+          vm.$off('hook:updated', watch)
+          vm.$off('hook:mounted', watch)
+        }
+      })
+    }
+
+    Vue.prototype.$observableFromQuerySelector = function (cssSelector) {
+      var vm = this
+      return this.$observableCompleteOnDestroy(function (observer) {
+        var element = vm.$el && vm.$el.querySelector(cssSelector)
+        if (typeof element !== 'undefined') {
+          observer.next(element)
+        }
+        function watch () {
+          const nextElement = vm.$el.querySelector(cssSelector)
+          if (nextElement !== element) {
+            element = nextElement
+            observer.next(element)
+          }
+        }
+        vm.$on('hook:updated', watch)
+        vm.$on('hook:mounted', watch)
+        return function () {
           vm.$off('hook:updated', watch)
           vm.$off('hook:mounted', watch)
         }
