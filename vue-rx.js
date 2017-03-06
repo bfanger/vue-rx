@@ -26,6 +26,25 @@
       }
     }
 
+    /**
+     * A shallow comparison of an array.
+     *
+     * @param {Array} next
+     * @param {*} previous
+     * @returns {boolean}
+     */
+    function arrayHasChanged (next, previous) {
+      if (!Array.isArray(previous) || next.length !== previous.length) {
+        return true
+      }
+      for (var i in previous) {
+        if (next[i] !== previous[i]) {
+          return true
+        }
+      }
+      return false
+    }
+
     function defineReactive (vm, key, val) {
       if (key in vm) {
         vm[key] = val
@@ -173,17 +192,8 @@
           var next = this.$refs[name]
           if (next !== previous) {
             if (Array.isArray(next)) {
-              if (Array.isArray(previous) && next.length === previous.length) {
-                var changed = false
-                for (var i in previous) {
-                  if (next[i] !== previous[i]) {
-                    changed = true
-                    break
-                  }
-                }
-                if (!changed) {
-                  return
-                }
+              if (arrayHasChanged(next, previous) === false) {
+                return
               }
               previous = next.slice(0)
             } else {
@@ -213,6 +223,32 @@
           if (nextElement !== element) {
             element = nextElement
             observer.next(element)
+          }
+        }
+        vm.$on('hook:updated', watch)
+        vm.$on('hook:mounted', watch)
+        return function () {
+          vm.$off('hook:updated', watch)
+          vm.$off('hook:mounted', watch)
+        }
+      })
+    }
+
+    Vue.prototype.$observableFromQuerySelectorAll = function (cssSelector) {
+      var vm = this
+      return this.$observableCompleteOnDestroy(function (observer) {
+        var previous = vm.$el && vm.$el.querySelectorAll(cssSelector)
+        if (typeof previous !== 'undefined') {
+          observer.next(previous)
+        }
+        function watch () {
+          const nextElements = vm.$el.querySelectorAll(cssSelector)
+          if (nextElements === previous) {
+            throw new Error('wut?')
+          }
+          if (arrayHasChanged(nextElements, previous)) {
+            previous = nextElements
+            observer.next(nextElements)
           }
         }
         vm.$on('hook:updated', watch)
